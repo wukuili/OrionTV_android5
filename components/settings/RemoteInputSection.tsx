@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { View, Switch, StyleSheet, Pressable, Animated, Platform } from "react-native";
+import { View, Switch, StyleSheet, Pressable, Animated, Platform, TouchableOpacity } from "react-native";
 import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
@@ -59,20 +59,31 @@ export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChange
 
   return (
     <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}
-     {...Platform.isTV||deviceType !=='tv'? undefined :{onPress:handlePress}}
-     >
+      {...Platform.isTV || deviceType !== 'tv' ? undefined : { onPress: handlePress }}
+    >
       <Pressable style={styles.settingItem} onFocus={handleSectionFocus} onBlur={handleSectionBlur}>
         <View style={styles.settingInfo}>
           <ThemedText style={styles.settingName}>启用远程输入</ThemedText>
         </View>
         <Animated.View style={animationStyle}>
-          <Switch
-            value={remoteInputEnabled}
-            onValueChange={() => {}} // 禁用Switch的直接交互
-            trackColor={{ false: "#767577", true: Colors.dark.primary }}
-            thumbColor={remoteInputEnabled ? "#ffffff" : "#f4f3f4"}
-            pointerEvents="none"
-          />
+          { Platform.OS === 'ios' && Platform.isTV ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handlePress()}
+              style={styles.statusLabel}
+            >
+              <ThemedText style={styles.statusValue}>{remoteInputEnabled ? '已启用' : '已禁用'}</ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <Switch
+              value={remoteInputEnabled}
+              onValueChange={() => { }} // 禁用Switch的直接交互
+              trackColor={{ false: "#767577", true: Colors.dark.primary }}
+              thumbColor={remoteInputEnabled ? "#ffffff" : "#f4f3f4"}
+              pointerEvents="none"
+            />
+          )
+          }
         </Animated.View>
       </Pressable>
 

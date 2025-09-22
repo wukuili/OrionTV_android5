@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 // region: --- Interface Definitions ---
 export interface DoubanItem {
   title: string;
@@ -104,17 +106,32 @@ export class API {
     return response;
   }
 
-  async getServerConfig(): Promise<ServerConfig> {
-    const response = await this._fetch("/api/server-config");
-    return response.json();
-  }
-
   async login(username?: string | undefined, password?: string): Promise<{ ok: boolean }> {
     const response = await this._fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
+
+    // 存储cookie到AsyncStorage
+    const cookies = response.headers.get("Set-Cookie");
+    if (cookies) {
+      await AsyncStorage.setItem("authCookies", cookies);
+    }
+
+    return response.json();
+  }
+
+  async logout(): Promise<{ ok: boolean }> {
+    const response = await this._fetch("/api/logout", {
+      method: "POST",
+    });
+    await AsyncStorage.setItem("authCookies", '');
+    return response.json();
+  }
+
+  async getServerConfig(): Promise<ServerConfig> {
+    const response = await this._fetch("/api/server-config");
     return response.json();
   }
 

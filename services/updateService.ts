@@ -1,9 +1,12 @@
-import ReactNativeBlobUtil from "react-native-blob-util";
-import FileViewer from "react-native-file-viewer";
-import Toast from "react-native-toast-message";
-import { version as currentVersion } from "../package.json";
-import { UPDATE_CONFIG } from "../constants/UpdateConfig";
+// UpdateService.ts
+import * as FileSystem from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
+// import * as Device from 'expo-device';
+import Toast from 'react-native-toast-message';
+import { version as currentVersion } from '../package.json';
+import { UPDATE_CONFIG } from '../constants/UpdateConfig';
 import Logger from '@/utils/Logger';
+import { Platform } from 'react-native';
 
 const logger = Logger.withTag('UpdateService');
 
@@ -12,9 +15,13 @@ interface VersionInfo {
   downloadUrl: string;
 }
 
+/**
+ * 只在 Android 平台使用的常量（iOS 不会走到下载/安装流程）
+ */
+const ANDROID_MIME_TYPE = 'application/vnd.android.package-archive';
+
 class UpdateService {
   private static instance: UpdateService;
-
   static getInstance(): UpdateService {
     if (!UpdateService.instance) {
       UpdateService.instance = new UpdateService();
@@ -22,203 +29,223 @@ class UpdateService {
     return UpdateService.instance;
   }
 
+  /** --------------------------------------------------------------
+   *  1️⃣ 远程版本检查（保持不变，只是把 fetch 包装成 async/await）
+   * --------------------------------------------------------------- */
   async checkVersion(): Promise<VersionInfo> {
-    let retries = 0;
     const maxRetries = 3;
-    
-    while (retries < maxRetries) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-        
+        const timeoutId = setTimeout(() => controller.abort(), 10_000);
         const response = await fetch(UPDATE_CONFIG.GITHUB_RAW_URL, {
           signal: controller.signal,
         });
-        
         clearTimeout(timeoutId);
-
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: Failed to fetch version info`);
+          throw new Error(`HTTP ${response.status}`);
         }
-
         const remotePackage = await response.json();
-        const remoteVersion = remotePackage.version;
-
+        const remoteVersion = remotePackage.version as string;
         return {
           version: remoteVersion,
           downloadUrl: UPDATE_CONFIG.getDownloadUrl(remoteVersion),
         };
-      } catch (error) {
-        retries++;
-        logger.info(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
-        
-        if (retries === maxRetries) {
-          Toast.show({ type: "error", text1: "检查更新失败", text2: "无法获取版本信息，请检查网络连接" });
-          throw error;
+      } catch (e) {
+        logger.warn(`checkVersion attempt ${attempt}/${maxRetries}`, e);
+        if (attempt === maxRetries) {
+          Toast.show({
+            type: 'error',
+            text1: '检查更新失败',
+            text2: '无法获取版本信息，请检查网络',
+          });
+          throw e;
         }
-        
-        // 等待一段时间后重试
-        await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+        // 指数退避
+        await new Promise(r => setTimeout(r, 2_000 * attempt));
       }
     }
-    
-    throw new Error("Maximum retry attempts exceeded");
+    // 这句永远走不到，仅为 TypeScript 报错
+    throw new Error('Unexpected');
   }
 
-  // 清理旧的APK文件
+  /** --------------------------------------------------------------
+   *  2️⃣ 清理旧的 APK 文件（使用 expo-file-system 的 API）
+   * --------------------------------------------------------------- */
   private async cleanOldApkFiles(): Promise<void> {
     try {
-      const { dirs } = ReactNativeBlobUtil.fs;
-      // 使用DocumentDir而不是DownloadDir
-      const files = await ReactNativeBlobUtil.fs.ls(dirs.DocumentDir);
-      
-      // 查找所有OrionTV APK文件
-      const apkFiles = files.filter(file => file.startsWith('OrionTV_v') && file.endsWith('.apk'));
-      
-      // 保留最新的2个文件，删除其他的
-      if (apkFiles.length > 2) {
-        const sortedFiles = apkFiles.sort((a, b) => {
-          // 从文件名中提取时间戳进行排序
-          const timeA = a.match(/OrionTV_v(\d+)\.apk/)?.[1] || '0';
-          const timeB = b.match(/OrionTV_v(\d+)\.apk/)?.[1] || '0';
-          return parseInt(timeB) - parseInt(timeA);
-        });
-        
-        // 删除旧文件
-        const filesToDelete = sortedFiles.slice(2);
-        for (const file of filesToDelete) {
-          try {
-            await ReactNativeBlobUtil.fs.unlink(`${dirs.DocumentDir}/${file}`);
-            logger.debug(`Cleaned old APK file: ${file}`);
-          } catch (deleteError) {
-            logger.warn(`Failed to delete old APK file ${file}:`, deleteError);
-          }
+      const dirUri = FileSystem.documentDirectory; // e.g. file:///data/user/0/.../files/
+      if (!dirUri) {
+        throw new Error('Document directory is not available');
+      }
+      const listing = await FileSystem.readDirectoryAsync(dirUri);
+      const apkFiles = listing.filter(name => name.startsWith('OrionTV_v') && name.endsWith('.apk'));
+
+      if (apkFiles.length <= 2) return;
+
+      const sorted = apkFiles.sort((a, b) => {
+        const numA = parseInt(a.replace(/[^0-9]/g, ''), 10);
+        const numB = parseInt(b.replace(/[^0-9]/g, ''), 10);
+        return numB - numA; // 倒序（最新在前）
+      });
+
+      const stale = sorted.slice(2); // 保留最新的两个
+      for (const file of stale) {
+        const path = `${dirUri}${file}`;
+        try {
+          await FileSystem.deleteAsync(path, { idempotent: true });
+          logger.debug(`Deleted old APK: ${file}`);
+        } catch (e) {
+          logger.warn(`Failed to delete ${file}`, e);
         }
       }
-    } catch (error) {
-      logger.warn('Failed to clean old APK files:', error);
+    } catch (e) {
+      logger.warn('cleanOldApkFiles error', e);
     }
   }
 
-  async downloadApk(url: string, onProgress?: (progress: number) => void): Promise<string> {
-    let retries = 0;
+  /** --------------------------------------------------------------
+   *  3️⃣ 下载 APK（使用 expo-file-system 的下载 API）
+   * --------------------------------------------------------------- */
+  async downloadApk(
+    url: string,
+    onProgress?: (percent: number) => void,
+  ): Promise<string> {
     const maxRetries = 3;
-    
-    // 清理旧文件
     await this.cleanOldApkFiles();
-    
-    while (retries < maxRetries) {
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const { dirs } = ReactNativeBlobUtil.fs;
-        const timestamp = new Date().getTime();
+        const timestamp = Date.now();
         const fileName = `OrionTV_v${timestamp}.apk`;
-        // 使用应用的外部文件目录，而不是系统下载目录
-        const filePath = `${dirs.DocumentDir}/${fileName}`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
-        const task = ReactNativeBlobUtil.config({
-          fileCache: true,
-          path: filePath,
-          timeout: UPDATE_CONFIG.DOWNLOAD_TIMEOUT,
-          // 移除 addAndroidDownloads 配置，避免使用系统下载管理器
-          // addAndroidDownloads: {
-          //   useDownloadManager: true,
-          //   notification: true,
-          //   title: UPDATE_CONFIG.NOTIFICATION.TITLE,
-          //   description: UPDATE_CONFIG.NOTIFICATION.DOWNLOADING_TEXT,
-          //   mime: "application/vnd.android.package-archive",
-          //   mediaScannable: true,
-          // },
-        }).fetch("GET", url);
+        // expo-file-system 把下载进度回调参数统一为 `{totalBytesWritten, totalBytesExpectedToWrite}`
+        const downloadResumable = FileSystem.createDownloadResumable(
+          url,
+          fileUri,
+          {
+            // Android 需要在 AndroidManifest 中声明 INTERNET、WRITE_EXTERNAL_STORAGE (API 33+ 使用 MANAGE_EXTERNAL_STORAGE)
+            // 这里不使用系统下载管理器，因为我们想自己控制进度回调。
+          },
+          progress => {
+            if (onProgress && progress.totalBytesExpectedToWrite) {
+              const percent = Math.floor(
+                (progress.totalBytesWritten / progress.totalBytesExpectedToWrite) * 100,
+              );
+              onProgress(percent);
+            }
+          },
+        );
 
-        // 监听下载进度
-        if (onProgress) {
-          task.progress((received: string, total: string) => {
-            const receivedNum = parseInt(received, 10);
-            const totalNum = parseInt(total, 10);
-            const progress = Math.floor((receivedNum / totalNum) * 100);
-            onProgress(progress);
+        const result = await downloadResumable.downloadAsync();
+        if (result && result.uri) {
+          logger.debug(`APK downloaded to ${result.uri}`);
+          return result.uri;
+        } else {
+          throw new Error('Download failed: No URI available');
+        }
+      } catch (e) {
+        logger.warn(`downloadApk attempt ${attempt}/${maxRetries}`, e);
+        if (attempt === maxRetries) {
+          Toast.show({
+            type: 'error',
+            text1: '下载失败',
+            text2: 'APK 下载出现错误，请检查网络',
+          });
+          throw e;
+        }
+        // 指数退避
+        await new Promise(r => setTimeout(r, 3_000 * attempt));
+      }
+    }
+    // 同上，理论不会到这里
+    throw new Error('Download failed');
+  }
+
+  /** --------------------------------------------------------------
+   *  4️⃣ 安装 APK（只在 Android 可用，使用 expo-intent-launcher）
+   * --------------------------------------------------------------- */
+  async installApk(fileUri: string): Promise<void> {
+    // if (!Device.isDevice) {
+    //   // 在模拟器里打开文件会报错，直接给用户提示
+    //   Toast.show({
+    //     type: 'error',
+    //     text1: '安装失败',
+    //     text2: '模拟器不支持直接安装 APK，请在真机上操作',
+    //   });
+    //   throw new Error('Cannot install on simulator');
+    // }
+
+    const exists = await FileSystem.getInfoAsync(fileUri);
+    if (!exists.exists) {
+      throw new Error(`APK not found at ${fileUri}`);
+    }
+
+    // Android 需要给 Intent 设置 mime 类型，并且使用 ACTION_VIEW
+    if (Platform.OS === 'android') {
+      try {
+        // Android 7+ 需要给出 URI 权限（FileProvider），Expo‑Intent‑Launcher 已经在内部使用了
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: fileUri,
+          type: ANDROID_MIME_TYPE,
+          flags: 1, // FLAG_ACTIVITY_NEW_TASK
+        });
+      } catch (e: any) {
+        // 常见错误：没有“未知来源”权限、或没有安装包管理器
+        if (e.message?.includes('Activity not found')) {
+          Toast.show({
+            type: 'error',
+            text1: '安装失败',
+            text2: '系统没有找到可以打开 APK 的应用，请检查系统设置',
+          });
+        } else if (e.message?.includes('permission')) {
+          Toast.show({
+            type: 'error',
+            text1: '安装失败',
+            text2: '请在设置里允许“未知来源”安装',
+          });
+        } else {
+          Toast.show({
+            type: 'error',
+            text1: '安装失败',
+            text2: '未知错误，请稍后重试',
           });
         }
-
-        const res = await task;
-        logger.debug(`APK downloaded successfully: ${filePath}`);
-        return res.path();
-      } catch (error) {
-        retries++;
-        logger.info(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
-        
-        if (retries === maxRetries) {
-          Toast.show({ type: "error", text1: "下载失败", text2: "APK下载失败，请检查网络连接" });
-          throw new Error(`Download failed after ${maxRetries} attempts: ${error}`);
-        }
-        
-        // 等待一段时间后重试
-        await new Promise(resolve => setTimeout(resolve, 3000 * retries));
+        throw e;
       }
-    }
-    
-    throw new Error("Maximum retry attempts exceeded for download");
-  }
-
-  async installApk(filePath: string): Promise<void> {
-    try {
-      // 首先检查文件是否存在
-      const exists = await ReactNativeBlobUtil.fs.exists(filePath);
-      if (!exists) {
-        throw new Error(`APK file not found: ${filePath}`);
-      }
-
-      // 使用FileViewer打开APK文件进行安装
-      // 这会触发Android的包安装器
-      await FileViewer.open(filePath, {
-        showOpenWithDialog: true, // 显示选择应用对话框
-        showAppsSuggestions: true, // 显示应用建议
-        displayName: "OrionTV Update",
+    } else {
+      // iOS 是不支持的，直接提示用户
+      Toast.show({
+        type: 'error',
+        text1: '安装失败',
+        text2: 'iOS 设备无法直接安装 APK',
       });
-    } catch (error) {
-      logger.info("Error installing APK:", error);
-      
-      // 提供更详细的错误信息
-      if (error instanceof Error) {
-        if (error.message.includes('No app found')) {
-          Toast.show({ type: "error", text1: "安装失败", text2: "未找到可安装APK的应用，请确保允许安装未知来源的应用" });
-          throw new Error('未找到可安装APK的应用，请确保允许安装未知来源的应用');
-        } else if (error.message.includes('permission')) {
-          Toast.show({ type: "error", text1: "安装失败", text2: "没有安装权限，请在设置中允许此应用安装未知来源的应用" });
-          throw new Error('没有安装权限，请在设置中允许此应用安装未知来源的应用');
-        } else {
-          Toast.show({ type: "error", text1: "安装失败", text2: "APK安装过程中出现错误" });
-        }
-      } else {
-        Toast.show({ type: "error", text1: "安装失败", text2: "APK安装过程中出现未知错误" });
-      }
-      
-      throw error;
+      throw new Error('APK install not supported on iOS');
     }
   }
 
+  /** --------------------------------------------------------------
+   *  5️⃣ 版本比对工具（保持原来的实现）
+   * --------------------------------------------------------------- */
   compareVersions(v1: string, v2: string): number {
-    const parts1 = v1.split(".").map(Number);
-    const parts2 = v2.split(".").map(Number);
-
-    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-      const part1 = parts1[i] || 0;
-      const part2 = parts2[i] || 0;
-
-      if (part1 > part2) return 1;
-      if (part1 < part2) return -1;
+    const p1 = v1.split('.').map(Number);
+    const p2 = v2.split('.').map(Number);
+    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+      const n1 = p1[i] ?? 0;
+      const n2 = p2[i] ?? 0;
+      if (n1 > n2) return 1;
+      if (n1 < n2) return -1;
     }
-
     return 0;
   }
-
   getCurrentVersion(): string {
     return currentVersion;
   }
-
   isUpdateAvailable(remoteVersion: string): boolean {
     return this.compareVersions(remoteVersion, currentVersion) > 0;
   }
 }
 
+/* 单例导出 */
 export default UpdateService.getInstance();

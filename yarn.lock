@@ -4592,6 +4592,11 @@ expo-font@~12.0.10, expo-font@~12.0.7:
   dependencies:
     fontfaceobserver "^2.1.0"
 
+expo-intent-launcher@~11.0.1:
+  version "11.0.1"
+  resolved "https://registry.yarnpkg.com/expo-intent-launcher/-/expo-intent-launcher-11.0.1.tgz#297dc4d084b1e3e2fab431afc847800f87cd1dc2"
+  integrity sha512-nUmTTa/HG4jUyRc5YHngdpP5bMyGSRZPi2RX9kpILd3vbMWQeVnwzqAfC+uI34W8uKhEk+9b9Dytzmm7bBND1Q==
+
 expo-keep-awake@~13.0.2:
   version "13.0.2"
   resolved "https://registry.yarnpkg.com/expo-keep-awake/-/expo-keep-awake-13.0.2.tgz#5ef31311a339671eec9921b934fdd90ab9652b0e"
