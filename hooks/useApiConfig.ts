@@ -38,7 +38,7 @@ export const useApiConfig = () => {
 
     const validateConfig = async () => {
       setValidationState(prev => ({ ...prev, isValidating: true, error: null }));
-      
+
       try {
         await api.getServerConfig();
         setValidationState({
@@ -48,7 +48,7 @@ export const useApiConfig = () => {
         });
       } catch (error) {
         let errorMessage = '服务器连接失败';
-        
+
         if (error instanceof Error) {
           switch (error.message) {
             case 'API_URL_NOT_SET':
@@ -70,7 +70,7 @@ export const useApiConfig = () => {
               break;
           }
         }
-        
+
         setValidationState({
           isValidating: false,
           isValid: false,
@@ -98,10 +98,10 @@ export const useApiConfig = () => {
       if (serverConfig) {
         setValidationState(prev => ({ ...prev, isValid: true, error: null }));
       } else {
-        setValidationState(prev => ({ 
-          ...prev, 
-          isValid: false, 
-          error: prev.error || '无法获取服务器配置' 
+        setValidationState(prev => ({
+          ...prev,
+          isValid: false,
+          error: prev.error || '无法获取服务器配置'
         }));
       }
     }
@@ -122,18 +122,18 @@ export const getApiConfigErrorMessage = (status: ApiConfigStatus): string => {
   if (status.needsConfiguration) {
     return '请点击右上角设置按钮，配置您的服务器地址';
   }
-  
+
   if (status.error) {
     return status.error;
   }
-  
+
   if (status.isValidating) {
     return '正在验证服务器配置...';
   }
-  
+
   if (status.isValid === false) {
     return '服务器配置验证失败，请检查设置';
   }
-  
+
   return '加载失败，请重试';
 };
