@@ -167,32 +167,29 @@ class UpdateService {
    *  4️⃣ 安装 APK（只在 Android 可用，使用 expo-intent-launcher）
    * --------------------------------------------------------------- */
   async installApk(fileUri: string): Promise<void> {
-    // if (!Device.isDevice) {
-    //   // 在模拟器里打开文件会报错，直接给用户提示
-    //   Toast.show({
-    //     type: 'error',
-    //     text1: '安装失败',
-    //     text2: '模拟器不支持直接安装 APK，请在真机上操作',
-    //   });
-    //   throw new Error('Cannot install on simulator');
-    // }
-
+    // ① 先确认文件存在
     const exists = await FileSystem.getInfoAsync(fileUri);
     if (!exists.exists) {
       throw new Error(`APK not found at ${fileUri}`);
     }
 
-    // Android 需要给 Intent 设置 mime 类型，并且使用 ACTION_VIEW
+    // ② 把 file:// 转成 content://，Expo‑FileSystem 已经实现了 FileProvider
+    const contentUri = await FileSystem.getContentUriAsync(fileUri);
+
+    // ③ 只在 Android 里执行
     if (Platform.OS === 'android') {
       try {
-        // Android 7+ 需要给出 URI 权限（FileProvider），Expo‑Intent‑Launcher 已经在内部使用了
+        // FLAG_ACTIVITY_NEW_TASK = 0x10000000 (1)
+        // FLAG_GRANT_READ_URI_PERMISSION = 0x00000010
+        const flags = 1 | 0x00000010;   // 1 | 16
+
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: fileUri,
-          type: ANDROID_MIME_TYPE,
-          flags: 1, // FLAG_ACTIVITY_NEW_TASK
+          data: contentUri,          // 必须是 content://
+          type: ANDROID_MIME_TYPE,   // application/vnd.android.package-archive
+          flags,
         });
       } catch (e: any) {
-        // 常见错误：没有“未知来源”权限、或没有安装包管理器
+        // 统一错误提示
         if (e.message?.includes('Activity not found')) {
           Toast.show({
             type: 'error',
@@ -215,7 +212,7 @@ class UpdateService {
         throw e;
       }
     } else {
-      // iOS 是不支持的，直接提示用户
+      // iOS 设备不支持直接安装 APK
       Toast.show({
         type: 'error',
         text1: '安装失败',
