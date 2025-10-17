@@ -23,7 +23,7 @@
     "preset": "jest-expo"
   },
   "resolutions": {
-    "react-native": "npm:react-native-tvos@~0.74.2-0"
+    "react-native": "npm:react-native-tvos@~0.73.7-0"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
@@ -47,7 +47,7 @@
     "lucide-react-native": "^0.523.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-native": "npm:react-native-tvos@~0.73.8-0",
+    "react-native": "npm:react-native-tvos@~0.73.7-0",
     "react-native-blob-util": "^0.22.2",
     "react-native-file-viewer": "^2.1.5",
     "react-native-gesture-handler": "~2.16.1",
