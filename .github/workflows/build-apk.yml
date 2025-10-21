@@ -18,10 +18,15 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          # cache: "yarn"
+          cache: "pnpm"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install dependencies
-        run: yarn install 
+        run: pnpm install --frozen-lockfile
 
       - name: Get version from package.json
         id: package-version
@@ -34,15 +39,15 @@ jobs:
           java-version: "17"
 
       - name: Prebuild TV App
-        run: yarn prebuild
+        run: pnpm prebuild
 
-      - name: Build TV APK
-        run: yarn build
+      - name: Build TV APK (debug for Android 5 compatibility)
+        run: pnpm build-debug
 
       - name: Rename APK file
         run: |
           mkdir -p artifacts
-          cp android/app/build/outputs/apk/release/app-release.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
 
       - name: Create Release and Upload APK
         uses: softprops/action-gh-release@v2
