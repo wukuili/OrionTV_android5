@@ -15,7 +15,7 @@
     "test-ci": "jest --ci --coverage --no-cache",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "clean": "expo r -c && yarn store prune || true && cd android && ./gradlew clean",
+    "clean": "expo r -c && yarn cache clean && cd android && ./gradlew clean",
     "clean-modules": "rm -rf node_modules && yarn install",
     "reset-project": "./scripts/reset-project.js"
   },
@@ -83,5 +83,5 @@
       ]
     }
   },
-  "packageManager": "yarn@9.12.3"
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
