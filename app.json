@@ -24,7 +24,7 @@
           },
           "android": {
             "newArchEnabled": false,
-            "minSdkVersion": 21,
+            "minSdkVersion": 19,
             "abiFilters": [
               "armeabi-v7a",
               "arm64-v8a",

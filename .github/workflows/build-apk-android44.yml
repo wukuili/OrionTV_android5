@@ -1,0 +1,64 @@
+name: Build Android 4.4 APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_android44:
+    name: Build Android 4.4 Compatible APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Modify minSdkVersion for Android 4.4
+        run: |
+          sed -i 's/"minSdkVersion": 21/"minSdkVersion": 19/' app.json
+
+      - name: Prebuild TV App
+        run: yarn prebuild
+
+      - name: Build Android 4.4 APK
+        run: yarn build
+
+      - name: Rename APK file
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/app-release.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}-android44.apk
+          
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.package-version.outputs.version }}-android44
+          name: Release v${{ steps.package-version.outputs.version }} (Android 4.4+)
+          body: |
+            Android 4.4+ compatible release for version v${{ steps.package-version.outputs.version }}.
+            
+            **Minimum Android Version:** Android 4.4 (API 19)
+            **Target Devices:** Android TV and mobile devices running Android 4.4+
+          draft: false
+          prerelease: false
+          files: artifacts/orionTV.${{ steps.package-version.outputs.version }}-android44.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
