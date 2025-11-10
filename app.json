@@ -36,12 +36,8 @@
           }
         }
       ],
-      "expo-router",
       "expo-font"
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "name": "OrionTV",
     "slug": "OrionTV",
     "orientation": "default",
