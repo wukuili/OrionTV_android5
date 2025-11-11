@@ -52,11 +52,12 @@ jobs:
             Android 4.4+ compatible release for version v${{ steps.package-version.outputs.version }}.
             
             **Minimum Android Version:** Android 4.4 (API 19)
-            **Expo SDK:** 48
-            **React Native:** 0.71 (TV OS)
+            **Expo SDK:** 46
+            **React Native:** 0.69 (TV OS)
             **Target Devices:** Android TV and mobile devices running Android 4.4+
             
             ⚠️ This is a legacy build with older dependencies for maximum compatibility.
+            ⚠️ expo-router has been removed - uses traditional navigation.
           draft: false
           prerelease: false
           files: artifacts/orionTV.${{ steps.package-version.outputs.version }}-android44.apk
