@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity } from "react-native";
+import { View, TextInput, StyleSheet, Keyboard, TouchableOpacity } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
@@ -19,6 +19,7 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from '@/utils/Logger';
+import Toast from "react-native-toast-message";
 
 const logger = Logger.withTag('SearchScreen');
 
@@ -85,10 +86,12 @@ export default function SearchScreen() {
 
   const handleQrPress = () => {
     if (!remoteInputEnabled) {
-      Alert.alert("远程输入未启用", "请先在设置页面中启用远程输入功能", [
-        { text: "取消", style: "cancel" },
-        { text: "去设置", onPress: () => router.push("/settings") },
-      ]);
+      Toast.show({
+        type: "info",
+        text1: "请先启用远程输入",
+        text2: "已为你跳转到设置页",
+      });
+      router.push("/settings");
       return;
     }
     showRemoteModal('search');
