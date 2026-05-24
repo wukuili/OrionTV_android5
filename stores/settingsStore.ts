@@ -12,6 +12,7 @@ interface SettingsState {
   m3uUrl: string;
   remoteInputEnabled: boolean;
   blockAdsEnabled: boolean;
+  proxyM3U8Token: string;
   videoSource: {
     enabledAll: boolean;
     sources: {
@@ -27,6 +28,7 @@ interface SettingsState {
   setM3uUrl: (url: string) => void;
   setRemoteInputEnabled: (enabled: boolean) => void;
   setBlockAdsEnabled: (enabled: boolean) => void;
+  setProxyM3U8Token: (token: string) => void;
   saveSettings: () => Promise<void>;
   setVideoSource: (config: { enabledAll: boolean; sources: { [key: string]: boolean } }) => void;
   showModal: () => void;
@@ -39,6 +41,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   liveStreamSources: [],
   remoteInputEnabled: false,
   blockAdsEnabled: true,
+  proxyM3U8Token: "",
   isModalVisible: false,
   serverConfig: null,
   isLoadingServerConfig: false,
@@ -53,6 +56,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
       blockAdsEnabled: settings.blockAdsEnabled !== undefined ? settings.blockAdsEnabled : true,
+      proxyM3U8Token: settings.proxyM3U8Token || "",
       videoSource: settings.videoSource || {
         enabledAll: true,
         sources: {},
@@ -82,9 +86,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setM3uUrl: (url) => set({ m3uUrl: url }),
   setRemoteInputEnabled: (enabled) => set({ remoteInputEnabled: enabled }),
   setBlockAdsEnabled: (enabled) => set({ blockAdsEnabled: enabled }),
+  setProxyM3U8Token: (token) => set({ proxyM3U8Token: token }),
   setVideoSource: (config) => set({ videoSource: config }),
   saveSettings: async () => {
-    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, blockAdsEnabled } = get();
+    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, blockAdsEnabled, proxyM3U8Token } = get();
     const currentSettings = await SettingsManager.get()
     const currentApiBaseUrl = currentSettings.apiBaseUrl;
     let processedApiBaseUrl = apiBaseUrl.trim();
@@ -112,6 +117,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       remoteInputEnabled,
       videoSource,
       blockAdsEnabled,
+      proxyM3U8Token,
     });
     if ( currentApiBaseUrl !== processedApiBaseUrl) {
       await AsyncStorage.setItem('authCookies', '');

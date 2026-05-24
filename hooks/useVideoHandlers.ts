@@ -1,4 +1,4 @@
-import { useCallback, useState, RefObject, useMemo } from 'react';
+import { useCallback, useState, useRef, RefObject, useMemo } from 'react';
 import { Video, ResizeMode } from 'expo-av';
 import Toast from 'react-native-toast-message';
 import usePlayerStore from '@/stores/playerStore';
@@ -9,6 +9,8 @@ import useDetailStore from '@/stores/detailStore';
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoHandlers');
+
+type AdBlockMode = 'proxy' | 'direct';
 
 interface UseVideoHandlersProps {
   videoRef: RefObject<Video>;
@@ -31,11 +33,11 @@ export const useVideoHandlers = ({
   deviceType,
   detail,
 }: UseVideoHandlersProps) => {
-  const [adBlockFallback, setAdBlockFallback] = useState(false);
+  const failedProxyUrls = useRef<Set<string>>(new Set());
+  const [adBlockMode, setAdBlockMode] = useState<AdBlockMode>('proxy');
 
   const onLoad = useCallback(async () => {
     console.info(`[PERF] Video onLoad - video ready to play`);
-    setAdBlockFallback(false);
     
     try {
       const jumpPosition = initialPosition || introEndTime || 0;
@@ -68,15 +70,16 @@ export const useVideoHandlers = ({
     
     console.error(`[ERROR] Video playback error:`, error);
 
-    if (useSettingsStore.getState().blockAdsEnabled && !adBlockFallback && isM3U8Url(currentEpisode.url)) {
+    if (useSettingsStore.getState().blockAdsEnabled && isM3U8Url(currentEpisode.url)) {
       const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
       if (apiBaseUrl) {
         const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
         const proxyUrl = api.getM3U8ProxyUrl(currentEpisode.url, source);
-        const videoUri = usePlayerStore.getState().status?.uri || '';
-        if (videoUri === proxyUrl) {
-          logger.warn('[AD_BLOCK] Proxy URL failed, retrying with original URL');
-          setAdBlockFallback(true);
+        const videoUri = (usePlayerStore.getState().status as any)?.uri || '';
+        if (videoUri === proxyUrl && !failedProxyUrls.current.has(proxyUrl)) {
+          logger.warn('[AD_BLOCK] Proxy URL failed, falling back to direct playback');
+          failedProxyUrls.current.add(proxyUrl);
+          setAdBlockMode('direct');
           return;
         }
       }
@@ -115,20 +118,28 @@ export const useVideoHandlers = ({
       });
       usePlayerStore.getState().handleVideoError('other', currentEpisode.url);
     }
-  }, [currentEpisode?.url, detail?.source, adBlockFallback]);
+  }, [currentEpisode?.url, detail?.source]);
 
   const blockAdsEnabled = useSettingsStore((s) => s.blockAdsEnabled);
+  const proxyM3U8Token = useSettingsStore((s) => s.proxyM3U8Token);
 
   const getVideoUrl = useCallback((url: string): string => {
     if (!url) return url;
-    if (adBlockFallback) return url;
     const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
     if (!blockAdsEnabled || !apiBaseUrl || !isM3U8Url(url)) {
       return url;
     }
+    if (adBlockMode === 'direct') {
+      return url;
+    }
     const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
-    return api.getM3U8ProxyUrl(url, source);
-  }, [blockAdsEnabled, detail?.source, adBlockFallback]);
+    const proxyUrl = api.getM3U8ProxyUrl(url, source, proxyM3U8Token || undefined);
+    if (failedProxyUrls.current.has(proxyUrl)) {
+      logger.info('[AD_BLOCK] Skipping previously failed proxy URL, using direct playback');
+      return url;
+    }
+    return proxyUrl;
+  }, [blockAdsEnabled, detail?.source, adBlockMode, proxyM3U8Token]);
 
   const videoUrl = useMemo(() => getVideoUrl(currentEpisode?.url || ''), [currentEpisode?.url, getVideoUrl]);
 

@@ -200,8 +200,12 @@ export class API {
     return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
   }
 
-  getM3U8ProxyUrl(videoUrl: string, source: string): string {
-    return `${this.baseURL}/api/proxy-m3u8?url=${encodeURIComponent(videoUrl)}&source=${encodeURIComponent(source)}`;
+  getM3U8ProxyUrl(videoUrl: string, source: string, token?: string): string {
+    let url = `${this.baseURL}/api/proxy-m3u8?url=${encodeURIComponent(videoUrl)}&source=${encodeURIComponent(source)}`;
+    if (token) {
+      url += `&token=${encodeURIComponent(token)}`;
+    }
+    return url;
   }
 
   async getDoubanData(

@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { View, Switch, StyleSheet, Pressable, Animated, Platform, TouchableOpacity } from "react-native";
+import { View, Switch, StyleSheet, Pressable, Animated, Platform, TouchableOpacity, TextInput } from "react-native";
 import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
@@ -15,7 +15,7 @@ interface AdBlockSectionProps {
 }
 
 export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFocus, onBlur }) => {
-  const { blockAdsEnabled, setBlockAdsEnabled } = useSettingsStore();
+  const { blockAdsEnabled, setBlockAdsEnabled, proxyM3U8Token, setProxyM3U8Token } = useSettingsStore();
   const [isFocused, setIsFocused] = React.useState(false);
   const animationStyle = useButtonAnimation(isFocused, 1.2);
   const deviceType = useResponsiveLayout().deviceType;
@@ -93,6 +93,25 @@ export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFoc
               已启用 - 将自动过滤视频中的广告片段
             </ThemedText>
           </View>
+          <View style={styles.statusItem}>
+            <ThemedText style={styles.statusLabel}>代理令牌：</ThemedText>
+            <ThemedText style={styles.statusDescription}>
+              如果后端需要认证令牌，在此填写
+            </ThemedText>
+          </View>
+          <TextInput
+            style={styles.tokenInput}
+            value={proxyM3U8Token}
+            onChangeText={(text) => {
+              setProxyM3U8Token(text);
+              onChanged();
+            }}
+            placeholder="可选，留空则不发送令牌"
+            placeholderTextColor="#666"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry={false}
+          />
         </View>
       )}
     </SettingsSection>
@@ -136,5 +155,21 @@ const styles = StyleSheet.create({
   statusValue: {
     fontSize: 14,
     flex: 1,
+  },
+  statusDescription: {
+    fontSize: 12,
+    color: "#888",
+    flex: 1,
+  },
+  tokenInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    backgroundColor: "#1a1a1c",
+    color: "white",
+    borderColor: "#444",
+    marginTop: 4,
   },
 });

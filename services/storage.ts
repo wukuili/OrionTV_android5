@@ -40,6 +40,7 @@ export interface AppSettings {
   };
   m3uUrl: string;
   blockAdsEnabled: boolean;
+  proxyM3U8Token: string;
 }
 
 export interface LoginCredentials {
@@ -324,6 +325,7 @@ export class SettingsManager {
       },
       m3uUrl: "",
       blockAdsEnabled: true,
+      proxyM3U8Token: "",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
