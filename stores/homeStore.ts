@@ -254,6 +254,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
         errorMessage = "请点击右上角设置按钮，配置您的服务器地址";
       } else if (err.message === "UNAUTHORIZED") {
         errorMessage = "认证失败，请重新登录";
+        useAuthStore.setState({ isLoggedIn: false, isLoginModalVisible: true });
       } else if (err.message.includes("Network")) {
         errorMessage = "网络连接失败，请检查网络连接";
       } else if (err.message.includes("timeout")) {
