@@ -1,4 +1,4 @@
-import { useCallback, RefObject, useMemo } from 'react';
+import { useCallback, useState, RefObject, useMemo } from 'react';
 import { Video, ResizeMode } from 'expo-av';
 import Toast from 'react-native-toast-message';
 import usePlayerStore from '@/stores/playerStore';
@@ -6,6 +6,9 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { api } from '@/services/api';
 import { isM3U8Url } from '@/services/m3u8Filter';
 import useDetailStore from '@/stores/detailStore';
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('VideoHandlers');
 
 interface UseVideoHandlersProps {
   videoRef: RefObject<Video>;
@@ -28,9 +31,11 @@ export const useVideoHandlers = ({
   deviceType,
   detail,
 }: UseVideoHandlersProps) => {
+  const [adBlockFallback, setAdBlockFallback] = useState(false);
 
   const onLoad = useCallback(async () => {
     console.info(`[PERF] Video onLoad - video ready to play`);
+    setAdBlockFallback(false);
     
     try {
       const jumpPosition = initialPosition || introEndTime || 0;
@@ -62,6 +67,20 @@ export const useVideoHandlers = ({
     if (!currentEpisode?.url) return;
     
     console.error(`[ERROR] Video playback error:`, error);
+
+    if (useSettingsStore.getState().blockAdsEnabled && !adBlockFallback && isM3U8Url(currentEpisode.url)) {
+      const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
+      if (apiBaseUrl) {
+        const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
+        const proxyUrl = api.getM3U8ProxyUrl(currentEpisode.url, source);
+        const videoUri = usePlayerStore.getState().status?.uri || '';
+        if (videoUri === proxyUrl) {
+          logger.warn('[AD_BLOCK] Proxy URL failed, retrying with original URL');
+          setAdBlockFallback(true);
+          return;
+        }
+      }
+    }
     
     const errorString = (error as any)?.error?.toString() || error?.toString() || '';
     const isSSLError = errorString.includes('SSLHandshakeException') || 
@@ -96,19 +115,20 @@ export const useVideoHandlers = ({
       });
       usePlayerStore.getState().handleVideoError('other', currentEpisode.url);
     }
-  }, [currentEpisode?.url]);
+  }, [currentEpisode?.url, detail?.source, adBlockFallback]);
 
   const blockAdsEnabled = useSettingsStore((s) => s.blockAdsEnabled);
 
   const getVideoUrl = useCallback((url: string): string => {
     if (!url) return url;
+    if (adBlockFallback) return url;
     const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
     if (!blockAdsEnabled || !apiBaseUrl || !isM3U8Url(url)) {
       return url;
     }
     const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
     return api.getM3U8ProxyUrl(url, source);
-  }, [blockAdsEnabled, detail?.source]);
+  }, [blockAdsEnabled, detail?.source, adBlockFallback]);
 
   const videoUrl = useMemo(() => getVideoUrl(currentEpisode?.url || ''), [currentEpisode?.url, getVideoUrl]);
 

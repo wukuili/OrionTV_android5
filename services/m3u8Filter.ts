@@ -6,10 +6,7 @@ const AD_KEYWORDS = [
   'sponsor',
   '/ad/',
   '/ads/',
-  'advert',
-  'advertisement',
   '/adjump',
-  'redtraffic',
   '/ad.',
   '/ads.',
   'preroll',
@@ -17,6 +14,8 @@ const AD_KEYWORDS = [
   'postroll',
   'doubleclick',
   'googlesyndication',
+  '/advert/',
+  '/advertisement/',
 ];
 
 export function filterAdsFromM3U8(source: string, m3u8Content: string): string {
@@ -68,16 +67,26 @@ function filterAdsFromMediaPlaylist(source: string, m3u8Content: string): string
   const lines = m3u8Content.split('\n');
   const filteredLines: string[] = [];
   let i = 0;
+  let skipAdSegment = false;
+  let adSegmentCount = 0;
+  let adDurationRemaining = 0;
 
   while (i < lines.length) {
     const line = lines[i];
 
-    if (line.includes('#EXT-X-DISCONTINUITY')) {
+    if (line.includes('#EXT-X-CUE-OUT')) {
+      const durationMatch = line.match(/(?:CUE-OUT|DURATION)[=:](\d+(?:\.\d+)?)/i);
+      if (durationMatch) {
+        adDurationRemaining = parseFloat(durationMatch[1]);
+      }
+      skipAdSegment = true;
       i++;
       continue;
     }
 
-    if (line.includes('#EXT-X-CUE-OUT') || line.includes('#EXT-X-CUE-IN')) {
+    if (line.includes('#EXT-X-CUE-IN')) {
+      skipAdSegment = false;
+      adDurationRemaining = 0;
       i++;
       continue;
     }
@@ -96,27 +105,46 @@ function filterAdsFromMediaPlaylist(source: string, m3u8Content: string): string
     }
 
     if (line.match(/^#EXT-X-SCTE35:.*CUE-OUT/i)) {
-      let segmentCount = 0;
       const durationMatch = line.match(/CUE-OUT[:=](\d+(\.\d+)?)/i) ||
                              line.match(/DURATION=(\d+(\.\d+)?)/i);
       if (durationMatch) {
-        const adDuration = parseFloat(durationMatch[1]);
-        let j = i + 1;
-        let accumulatedDuration = 0;
-        while (j < lines.length && accumulatedDuration < adDuration) {
-          if (lines[j].startsWith('#EXTINF:')) {
-            const extinfDuration = parseFloat(lines[j].substring(8).split(',')[0]) || 0;
-            accumulatedDuration += extinfDuration;
-            segmentCount++;
-          }
-          j++;
-        }
+        adDurationRemaining = parseFloat(durationMatch[1]);
+        skipAdSegment = true;
       }
       i++;
       continue;
     }
 
     if (line.match(/^#EXT-X-SCTE35:.*CUE-IN/i)) {
+      skipAdSegment = false;
+      adDurationRemaining = 0;
+      i++;
+      continue;
+    }
+
+    if (skipAdSegment && line.startsWith('#EXTINF:')) {
+      const durationMatch = line.match(/#EXTINF:([\d.]+)/);
+      if (durationMatch) {
+        adDurationRemaining -= parseFloat(durationMatch[1]);
+        if (adDurationRemaining <= 0) {
+          skipAdSegment = false;
+          adSegmentCount = 0;
+          i++;
+          if (i < lines.length && !lines[i].startsWith('#')) {
+            i++;
+          }
+          continue;
+        }
+      }
+      i++;
+      if (i < lines.length && !lines[i].startsWith('#')) {
+        i++;
+      }
+      adSegmentCount++;
+      continue;
+    }
+
+    if (skipAdSegment && !line.startsWith('#')) {
       i++;
       continue;
     }
