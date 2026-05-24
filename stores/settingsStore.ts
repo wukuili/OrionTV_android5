@@ -11,6 +11,7 @@ interface SettingsState {
   apiBaseUrl: string;
   m3uUrl: string;
   remoteInputEnabled: boolean;
+  blockAdsEnabled: boolean;
   videoSource: {
     enabledAll: boolean;
     sources: {
@@ -25,6 +26,7 @@ interface SettingsState {
   setApiBaseUrl: (url: string) => void;
   setM3uUrl: (url: string) => void;
   setRemoteInputEnabled: (enabled: boolean) => void;
+  setBlockAdsEnabled: (enabled: boolean) => void;
   saveSettings: () => Promise<void>;
   setVideoSource: (config: { enabledAll: boolean; sources: { [key: string]: boolean } }) => void;
   showModal: () => void;
@@ -36,6 +38,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   m3uUrl: "",
   liveStreamSources: [],
   remoteInputEnabled: false,
+  blockAdsEnabled: true,
   isModalVisible: false,
   serverConfig: null,
   isLoadingServerConfig: false,
@@ -49,6 +52,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       apiBaseUrl: settings.apiBaseUrl,
       m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
+      blockAdsEnabled: settings.blockAdsEnabled !== undefined ? settings.blockAdsEnabled : true,
       videoSource: settings.videoSource || {
         enabledAll: true,
         sources: {},
@@ -77,9 +81,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setApiBaseUrl: (url) => set({ apiBaseUrl: url }),
   setM3uUrl: (url) => set({ m3uUrl: url }),
   setRemoteInputEnabled: (enabled) => set({ remoteInputEnabled: enabled }),
+  setBlockAdsEnabled: (enabled) => set({ blockAdsEnabled: enabled }),
   setVideoSource: (config) => set({ videoSource: config }),
   saveSettings: async () => {
-    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource } = get();
+    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, blockAdsEnabled } = get();
     const currentSettings = await SettingsManager.get()
     const currentApiBaseUrl = currentSettings.apiBaseUrl;
     let processedApiBaseUrl = apiBaseUrl.trim();
@@ -106,6 +111,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       m3uUrl,
       remoteInputEnabled,
       videoSource,
+      blockAdsEnabled,
     });
     if ( currentApiBaseUrl !== processedApiBaseUrl) {
       await AsyncStorage.setItem('authCookies', '');

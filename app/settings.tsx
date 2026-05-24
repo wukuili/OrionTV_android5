@@ -13,6 +13,7 @@ import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
 import { UpdateSection } from "@/components/settings/UpdateSection";
+import { AdBlockSection } from "@/components/settings/AdBlockSection";
 // import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 import Toast from "react-native-toast-message";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -185,13 +186,25 @@ export default function SettingsScreen() {
       ),
       key: "api",
     },
+    {
+      component: (
+        <AdBlockSection
+          onChanged={markAsChanged}
+          onFocus={() => {
+            setCurrentFocusIndex(2);
+            setCurrentSection("adblock");
+          }}
+        />
+      ),
+      key: "adblock",
+    },
     deviceType !== "mobile" && {
       component: (
         <LiveStreamSection
           ref={liveStreamSectionRef}
           onChanged={markAsChanged}
           onFocus={() => {
-            setCurrentFocusIndex(2);
+            setCurrentFocusIndex(3);
             setCurrentSection("livestream");
           }}
         />

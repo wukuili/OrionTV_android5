@@ -2,6 +2,10 @@ import { useCallback, RefObject, useMemo } from 'react';
 import { Video, ResizeMode } from 'expo-av';
 import Toast from 'react-native-toast-message';
 import usePlayerStore from '@/stores/playerStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { api } from '@/services/api';
+import { isM3U8Url } from '@/services/m3u8Filter';
+import useDetailStore from '@/stores/detailStore';
 
 interface UseVideoHandlersProps {
   videoRef: RefObject<Video>;
@@ -11,7 +15,7 @@ interface UseVideoHandlersProps {
   playbackRate: number;
   handlePlaybackStatusUpdate: (status: any) => void;
   deviceType: string;
-  detail?: { poster?: string };
+  detail?: { poster?: string; source?: string };
 }
 
 export const useVideoHandlers = ({
@@ -24,19 +28,17 @@ export const useVideoHandlers = ({
   deviceType,
   detail,
 }: UseVideoHandlersProps) => {
-  
+
   const onLoad = useCallback(async () => {
     console.info(`[PERF] Video onLoad - video ready to play`);
     
     try {
-      // 1. 先设置位置（如果需要）
       const jumpPosition = initialPosition || introEndTime || 0;
       if (jumpPosition > 0) {
         console.info(`[PERF] Setting initial position to ${jumpPosition}ms`);
         await videoRef.current?.setPositionAsync(jumpPosition);
       }
       
-      // 2. 显式调用播放以确保自动播放
       console.info(`[AUTOPLAY] Attempting to start playback after onLoad`);
       await videoRef.current?.playAsync();
       console.info(`[AUTOPLAY] Auto-play successful after onLoad`);
@@ -45,9 +47,7 @@ export const useVideoHandlers = ({
       console.info(`[PERF] Video loading complete - isLoading set to false`);
     } catch (error) {
       console.warn(`[AUTOPLAY] Failed to auto-play after onLoad:`, error);
-      // 即使自动播放失败，也要设置加载完成状态
       usePlayerStore.setState({ isLoading: false });
-      // 不显示错误提示，因为自动播放失败是常见且预期的情况
     }
   }, [videoRef, initialPosition, introEndTime]);
 
@@ -63,7 +63,6 @@ export const useVideoHandlers = ({
     
     console.error(`[ERROR] Video playback error:`, error);
     
-    // 检测SSL证书错误和其他网络错误
     const errorString = (error as any)?.error?.toString() || error?.toString() || '';
     const isSSLError = errorString.includes('SSLHandshakeException') || 
                       errorString.includes('CertPathValidatorException') ||
@@ -99,9 +98,22 @@ export const useVideoHandlers = ({
     }
   }, [currentEpisode?.url]);
 
-  // 优化的Video组件props
+  const blockAdsEnabled = useSettingsStore((s) => s.blockAdsEnabled);
+
+  const getVideoUrl = useCallback((url: string): string => {
+    if (!url) return url;
+    const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
+    if (!blockAdsEnabled || !apiBaseUrl || !isM3U8Url(url)) {
+      return url;
+    }
+    const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
+    return api.getM3U8ProxyUrl(url, source);
+  }, [blockAdsEnabled, detail?.source]);
+
+  const videoUrl = useMemo(() => getVideoUrl(currentEpisode?.url || ''), [currentEpisode?.url, getVideoUrl]);
+
   const videoProps = useMemo(() => ({
-    source: { uri: currentEpisode?.url || '' },
+    source: { uri: videoUrl },
     posterSource: { uri: detail?.poster ?? "" },
     resizeMode: ResizeMode.CONTAIN,
     rate: playbackRate,
@@ -112,7 +124,7 @@ export const useVideoHandlers = ({
     useNativeControls: deviceType !== 'tv',
     shouldPlay: true,
   }), [
-    currentEpisode?.url,
+    videoUrl,
     detail?.poster,
     playbackRate,
     handlePlaybackStatusUpdate,
