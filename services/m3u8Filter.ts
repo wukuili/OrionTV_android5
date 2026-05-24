@@ -82,7 +82,7 @@ function filterAdsFromMediaPlaylist(source: string, m3u8Content: string): string
       continue;
     }
 
-    if (line.match(/^#EXT-X-DATERANGE:.*CLASS="com\.apple\.streamingkit\.ad/prespawn"/i)) {
+    if (line.match(/^#EXT-X-DATERANGE:.*CLASS="com\.apple\.streamingkit\.ad\/prespawn"/i)) {
       while (i < lines.length && !lines[i].startsWith('#EXTINF:')) {
         i++;
       }
