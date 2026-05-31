@@ -41,10 +41,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   liveStreamSources: [],
   remoteInputEnabled: false,
   blockAdsEnabled: true,
-  proxyM3U8Token: "",
   isModalVisible: false,
   serverConfig: null,
   isLoadingServerConfig: false,
+  proxyM3U8Token: "",
   videoSource: {
     enabledAll: true,
     sources: {},
@@ -64,6 +64,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);
+      api.setProxyToken(settings.proxyM3U8Token || "");
       await get().fetchServerConfig();
     }
   },
@@ -123,6 +124,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await AsyncStorage.setItem('authCookies', '');
     }
     api.setBaseUrl(processedApiBaseUrl);
+    api.setProxyToken(proxyM3U8Token);
     // Also update the URL in the state so the input field shows the processed URL
     set({ isModalVisible: false, apiBaseUrl: processedApiBaseUrl });
     await get().fetchServerConfig();

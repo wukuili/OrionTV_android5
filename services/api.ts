@@ -77,6 +77,7 @@ export interface ServerConfig {
 
 export class API {
   public baseURL: string = "";
+  public proxyToken: string = "";
 
   constructor(baseURL?: string) {
     if (baseURL) {
@@ -86,6 +87,10 @@ export class API {
 
   public setBaseUrl(url: string) {
     this.baseURL = url;
+  }
+
+  public setProxyToken(token: string) {
+    this.proxyToken = token;
   }
 
   private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -200,12 +205,20 @@ export class API {
     return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
   }
 
-  getM3U8ProxyUrl(videoUrl: string, source: string, token?: string): string {
-    let url = `${this.baseURL}/api/proxy-m3u8?url=${encodeURIComponent(videoUrl)}&source=${encodeURIComponent(source)}`;
-    if (token) {
-      url += `&token=${encodeURIComponent(token)}`;
+  getM3U8ProxyUrl(videoUrl: string, source: string): string {
+    let url = `${this.baseURL}/api/proxy/m3u8?url=${encodeURIComponent(videoUrl)}&moontv-source=${encodeURIComponent(source)}`;
+    if (this.proxyToken) {
+      url += `&token=${encodeURIComponent(this.proxyToken)}`;
     }
     return url;
+  }
+
+  getM3U8SegmentUrl(videoUrl: string): string {
+    return `${this.baseURL}/api/proxy/segment?url=${encodeURIComponent(videoUrl)}`;
+  }
+
+  getM3U8KeyUrl(keyUrl: string): string {
+    return `${this.baseURL}/api/proxy/key?url=${encodeURIComponent(keyUrl)}`;
   }
 
   async getDoubanData(

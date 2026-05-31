@@ -242,15 +242,14 @@ export function isM3U8Url(url: string): boolean {
   return lowerUrl.endsWith('.m3u8') || lowerUrl.includes('.m3u8?') || lowerUrl.includes('.m3u8#');
 }
 
-export async function getFilteredM3U8Url(
+export function getProxyM3U8Url(
   originalUrl: string,
   source: string,
   apiBaseUrl: string
-): Promise<string> {
+): string {
   if (!apiBaseUrl || !isM3U8Url(originalUrl)) {
     return originalUrl;
   }
 
-  const proxyUrl = `${apiBaseUrl}/api/proxy-m3u8?url=${encodeURIComponent(originalUrl)}&source=${encodeURIComponent(source)}`;
-  return proxyUrl;
+  return `${apiBaseUrl}/api/proxy/m3u8?url=${encodeURIComponent(originalUrl)}&moontv-source=${encodeURIComponent(source)}`;
 }

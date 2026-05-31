@@ -67,16 +67,15 @@ export const useVideoHandlers = ({
 
   const onError = useCallback((error: any) => {
     if (!currentEpisode?.url) return;
-    
+
     console.error(`[ERROR] Video playback error:`, error);
 
-    if (useSettingsStore.getState().blockAdsEnabled && isM3U8Url(currentEpisode.url)) {
+    if (adBlockMode === 'proxy' && useSettingsStore.getState().blockAdsEnabled && isM3U8Url(currentEpisode.url)) {
       const apiBaseUrl = useSettingsStore.getState().apiBaseUrl;
       if (apiBaseUrl) {
         const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
         const proxyUrl = api.getM3U8ProxyUrl(currentEpisode.url, source);
-        const videoUri = (usePlayerStore.getState().status as any)?.uri || '';
-        if (videoUri === proxyUrl && !failedProxyUrls.current.has(proxyUrl)) {
+        if (!failedProxyUrls.current.has(proxyUrl)) {
           logger.warn('[AD_BLOCK] Proxy URL failed, falling back to direct playback');
           failedProxyUrls.current.add(proxyUrl);
           setAdBlockMode('direct');
@@ -118,10 +117,9 @@ export const useVideoHandlers = ({
       });
       usePlayerStore.getState().handleVideoError('other', currentEpisode.url);
     }
-  }, [currentEpisode?.url, detail?.source]);
+  }, [currentEpisode?.url, detail?.source, adBlockMode]);
 
   const blockAdsEnabled = useSettingsStore((s) => s.blockAdsEnabled);
-  const proxyM3U8Token = useSettingsStore((s) => s.proxyM3U8Token);
 
   const getVideoUrl = useCallback((url: string): string => {
     if (!url) return url;
@@ -133,13 +131,13 @@ export const useVideoHandlers = ({
       return url;
     }
     const source = detail?.source || useDetailStore.getState()?.detail?.source || '';
-    const proxyUrl = api.getM3U8ProxyUrl(url, source, proxyM3U8Token || undefined);
+    const proxyUrl = api.getM3U8ProxyUrl(url, source);
     if (failedProxyUrls.current.has(proxyUrl)) {
       logger.info('[AD_BLOCK] Skipping previously failed proxy URL, using direct playback');
       return url;
     }
     return proxyUrl;
-  }, [blockAdsEnabled, detail?.source, adBlockMode, proxyM3U8Token]);
+  }, [blockAdsEnabled, detail?.source, adBlockMode]);
 
   const videoUrl = useMemo(() => getVideoUrl(currentEpisode?.url || ''), [currentEpisode?.url, getVideoUrl]);
 
